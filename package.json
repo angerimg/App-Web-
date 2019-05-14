@@ -1303,6 +1303,7 @@
       "resolved": "https://registry.npmjs.org/isarray/-/isarray-0.0.1.tgz",
       "version": "0.0.1"
     },
+    "joi": "^14.3.1",
     "json-bigint": {
       "integrity": "sha1-DM2RLEuCcNBfBW+9E4FLU9OCWx4=",
       "requires": {
