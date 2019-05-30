@@ -133,6 +133,67 @@ appTipo_usuario5.use(express.json());
 
 ////////
 
+//esto permite que alguien desde otro lugar pueda acceder tambien a las funciones
+// sin el cors no se podia acceder desde la app web
+const cors = require("cors");
+const corsOptions = {
+  origin: "*",
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "Content-Length",
+    "X-Requested-With",
+    "Accept"
+  ],
+  methods: ["GET", "PUT", "POST", "DELETE", "OPTIONS"],
+  optionsSuccessStatus: 200 // some legacy browsers (IE11, various SmartTVs) choke on 204
+};
+appCola1.use(cors(corsOptions));
+appCola2.use(cors(corsOptions));
+appCola3.use(cors(corsOptions));
+appCola4.use(cors(corsOptions));
+appCola5.use(cors(corsOptions));
+appEstacion_trabajo1.use(cors(corsOptions));
+appEstacion_trabajo2.use(cors(corsOptions));
+appEstacion_trabajo3.use(cors(corsOptions));
+appEstacion_trabajo4.use(cors(corsOptions));
+appEstacion_trabajo5.use(cors(corsOptions));
+appNegocio1.use(cors(corsOptions));
+appNegocio2.use(cors(corsOptions));
+appNegocio3.use(cors(corsOptions));
+appNegocio4.use(cors(corsOptions));
+appNegocio5.use(cors(corsOptions));
+appServicio1.use(cors(corsOptions));
+appServicio2.use(cors(corsOptions));
+appServicio3.use(cors(corsOptions));
+appServicio4.use(cors(corsOptions));
+appServicio5.use(cors(corsOptions));
+appSucursal1.use(cors(corsOptions));
+appSucursal2.use(cors(corsOptions));
+appSucursal3.use(cors(corsOptions));
+appSucursal4.use(cors(corsOptions));
+appSucursal4.use(cors(corsOptions));
+appTipo_estado_turno1.use(cors(corsOptions));
+appTipo_estado_turno2.use(cors(corsOptions));
+appTipo_estado_turno3.use(cors(corsOptions));
+appTipo_estado_turno4.use(cors(corsOptions));
+appTipo_estado_turno5.use(cors(corsOptions));
+appTipo_usuario1.use(cors(corsOptions));
+appTipo_usuario2.use(cors(corsOptions));
+appTipo_usuario3.use(cors(corsOptions));
+appTipo_usuario4.use(cors(corsOptions));
+appTipo_usuario5.use(cors(corsOptions));
+appTurno1.use(cors(corsOptions));
+appTurno2.use(cors(corsOptions));
+appTurno3.use(cors(corsOptions));
+appTurno4.use(cors(corsOptions));
+appTurno5.use(cors(corsOptions));
+appUsuario1.use(cors(corsOptions));
+appUsuario2.use(cors(corsOptions));
+appUsuario3.use(cors(corsOptions));
+appUsuario4.use(cors(corsOptions));
+appUsuario5.use(cors(corsOptions));
+
 //console.log(path.resolve(__dirname, './turnos-virtuales-firebase-adminsdk-9458v-51213b498f.json'));
 firebase.initializeApp({
   credential: firebase.credential.cert(
