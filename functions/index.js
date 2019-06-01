@@ -146,7 +146,7 @@ const corsOptions = {
     "Accept"
   ],
   methods: ["GET", "PUT", "POST", "DELETE", "OPTIONS"],
-  optionsSuccessStatus: 200 // some legacy browsers (IE11, various SmartTVs) choke on 204
+  optionsSuccessStatus: 200
 };
 appCola1.use(cors(corsOptions));
 appCola2.use(cors(corsOptions));
