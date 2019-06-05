@@ -12,12 +12,16 @@ const appTurno2 = express();
 const appTurno3 = express();
 const appTurno4 = express();
 const appTurno5 = express();
+const appTurno11 = express();
+const appTurno12 = express();
 
 appTurno1.use(express.json());
 appTurno2.use(express.json());
 appTurno3.use(express.json());
 appTurno4.use(express.json());
 appTurno5.use(express.json());
+appTurno11.use(express.json());
+appTurno12.use(express.json());
 
 ////////
 const appNegocio1 = express(); //
@@ -187,6 +191,8 @@ appTurno2.use(cors(corsOptions));
 appTurno3.use(cors(corsOptions));
 appTurno4.use(cors(corsOptions));
 appTurno5.use(cors(corsOptions));
+appTurno11.use(cors(corsOptions));
+appTurno12.use(cors(corsOptions));
 appUsuario1.use(cors(corsOptions));
 appUsuario2.use(cors(corsOptions));
 appUsuario3.use(cors(corsOptions));
@@ -231,14 +237,17 @@ exports.getTurnos = functions.https.onRequest(appTurno2);
 //crear un turno nuevo en la tabla turno==============================
 
 appTurno3.post("/pT", (req, res) => {
-  const turnos = firebase.database().ref("/turno"),
-    turno = req.body, // El objeto que mandamos.
-    { error } = validateTurno(turno); //valida el turno contra el esquema
+  const turnos = firebase.database().ref("/turno");
+  let turno = req.body; // El objeto que mandamos.'
+  turno.hora_pedido = calcularHora();
+  turno.fecha = calularFecha();
+  const { error } = validateTurno(turno); //valida el turno contra el esquema
 
   if (error) {
     res.status(400).send(error.details[0].message);
     return;
   }
+
   turnos
     .push(turno) // Crea un nuevo objeto con ID aleatorio.
     .then(res.json(turno))
@@ -267,25 +276,6 @@ appTurno4.put("/eT/:id", (req, res) => {
         }
         if (req.body.id_negocio) {
           childSnapshot.ref.update({ id_negocio: req.body.id_negocio });
-        }
-        if (req.body.duracion_turno) {
-          childSnapshot.ref.update({ duracion_turno: req.body.duracion_turno });
-        }
-        if (req.body.fecha) {
-          childSnapshot.ref.update({ fecha: req.body.fecha });
-        }
-        if (req.body.hora_finalizado) {
-          childSnapshot.ref.update({
-            hora_finalizado: req.body.hora_finalizado
-          });
-        }
-        if (req.body.hora_inicio_atencion) {
-          childSnapshot.ref.update({
-            hora_inicio_atencion: req.body.hora_inicio_atencion
-          });
-        }
-        if (req.body.hora_pedido) {
-          childSnapshot.ref.update({ hora_pedido: req.body.hora_pedido });
         }
         if (req.body.id_cola) {
           childSnapshot.ref.update({ id_cola: req.body.id_cola });
@@ -318,6 +308,13 @@ appTurno4.put("/eT/:id", (req, res) => {
         if (req.body.activo) {
           childSnapshot.ref.update({ activo: req.body.activo });
         }
+
+        childSnapshot.ref.update({ duracion_turno: "00" });
+        childSnapshot.ref.update({ fecha: "00/00/00" });
+        childSnapshot.ref.update({ hora_finalizado: "00:00:00" });
+        childSnapshot.ref.update({ hora_inicio_atencion: "00:00:00" });
+        childSnapshot.ref.update({ hora_pedido: calcularHora() });
+
         res.send(childSnapshot);
       }
     });
@@ -348,7 +345,7 @@ function validateTurno(turno) {
   const schema = {
     activo: Joi.string().min(4),
     duracion_turno: Joi.string().min(2),
-    fecha: Joi.string().min(10),
+    fecha: Joi.string().min(3),
     hora_finalizado: Joi.string().min(5),
     hora_inicio_atencion: Joi.string().min(5),
     hora_pedido: Joi.string().min(5),
@@ -797,6 +794,59 @@ appCola5.put("/can/:id", (req, res) => {
 });
 exports.cancelCola = functions.https.onRequest(appCola5);
 
+//--------------------------------------------------------------------------------------------------------
+
+appTurno11.put("/update/:id", (req, res) => {
+  const turnos = firebase.database().ref("/turno");
+  const turno = req.body; // El objeto que mandamos.
+  const { error } = validateTurno(turno);
+  if (error) {
+    res.status(400).send(error.details[0].message);
+    return;
+  }
+  turnos.on("value", snapshot => {
+    snapshot.forEach(function(childSnapshot) {
+      var key = childSnapshot.key;
+      if (key === req.params.id) {
+        childSnapshot.ref.update({ hora_inicio_atencion: calcularHora() });
+        res.send(childSnapshot);
+      }
+    });
+  });
+});
+exports.setHoraInicioTurno = functions.https.onRequest(appTurno11);
+
+appTurno12.put("/update/:id", (req, res) => {
+  const turnos = firebase.database().ref("/turno");
+  const turno = req.body; // El objeto que mandamos.
+  const { error } = validateTurno(turno);
+  if (error) {
+    res.status(400).send(error.details[0].message);
+    return;
+  }
+  turnos.on("value", snapshot => {
+    snapshot.forEach(function(childSnapshot) {
+      var key = childSnapshot.key;
+      if (key === req.params.id) {
+        childSnapshot.ref.update({ activo: "false" });
+        childSnapshot.ref.update({ hora_finalizado: calcularHora() });
+        childSnapshot.ref.update({
+          duracion_turno: calcularDuracion(
+            childSnapshot.child("hora_inicio_atencion").val(),
+            childSnapshot.child("hora_finalizado").val()
+          )
+        });
+        updateTiempoServicio(
+          childSnapshot.child("duracion_turno").val(),
+          childSnapshot.child("id_servicio").val()
+        );
+        res.send(childSnapshot);
+      }
+    });
+  });
+});
+exports.setHoraFinalizaTurno = functions.https.onRequest(appTurno12);
+
 function validateCola(cola) {
   const schema = {
     activo: Joi.string().min(4),
@@ -806,4 +856,78 @@ function validateCola(cola) {
     nombre: Joi.string().min(4)
   };
   return Joi.validate(cola, schema);
+}
+
+function updateTiempoServicio(tiempo, id_servicio) {
+  const servicios = firebase.database().ref("/servicio");
+  servicios.on("value", snapshot => {
+    snapshot.forEach(function(childSnapshot) {
+      var key = childSnapshot.key;
+      if (key === id_servicio) {
+        childSnapshot.ref.update({
+          id_tiempo_estimado: calcularPromedio(
+            tiempo,
+            childSnapshot.child("id_tiempo_estimado").val()
+          )
+        });
+      }
+    });
+  });
+}
+
+function calcularPromedio(num, num2) {
+  let numero1 = parseInt(num);
+  let numero2 = parseInt(num2);
+  let resultado = (numero1 + numero2) / 2;
+  return resultado.toString();
+}
+
+function calcularDuracion(inicio, fin) {
+  let inicioMinutos = parseInt(inicio.substr(3, 2));
+  let inicioHoras = parseInt(inicio.substr(0, 2));
+
+  let finMinutos = parseInt(fin.substr(3, 2));
+  let finHoras = parseInt(fin.substr(0, 2));
+
+  let transcurridoMinutos = finMinutos - inicioMinutos;
+  let transcurridoHoras = finHoras - inicioHoras;
+
+  if (transcurridoMinutos < 0) {
+    transcurridoHoras--;
+    transcurridoMinutos = 60 + transcurridoMinutos + transcurridoHoras * 60;
+  }
+
+  return transcurridoMinutos.toString();
+}
+
+function calularFecha() {
+  const fecha = new Date();
+  let dia = fecha.getUTCDate();
+  let mes = fecha.getMonth();
+  let year = fecha.getFullYear();
+  return dia + "/" + mes + "/" + year;
+}
+
+function calcularHora() {
+  const fecha = new Date();
+  let horas = fecha.getHours() - 4;
+  let minutos = fecha.getMinutes();
+  let segundos = fecha.getSeconds();
+
+  if (horas.length < 2) {
+    horas = "0" + horas;
+  }
+
+  if (horas.length < 2) {
+    horas = "0" + horas;
+  }
+
+  if (minutos.length < 2) {
+    minutos = "0" + minutos;
+  }
+
+  if (minutos.length < 2) {
+    minutos = "0" + minutos;
+  }
+  return horas + ":" + minutos + ":" + segundos;
 }
