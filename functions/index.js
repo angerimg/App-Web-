@@ -43,12 +43,14 @@ const appSucursal2 = express();
 const appSucursal3 = express();
 const appSucursal4 = express();
 const appSucursal5 = express();
+const appSucursal6 = express();
 
 appSucursal1.use(express.json());
 appSucursal2.use(express.json());
 appSucursal3.use(express.json());
 appSucursal4.use(express.json());
 appSucursal5.use(express.json());
+appSucursal6.use(express.json());
 
 ////////
 
@@ -140,16 +142,16 @@ appTipo_usuario5.use(express.json());
 // sin el cors no se podia acceder desde la app web
 const cors = require("cors");
 const corsOptions = {
-  origin: "*",
-  allowedHeaders: [
-    "Content-Type",
-    "Authorization",
-    "Content-Length",
-    "X-Requested-With",
-    "Accept"
-  ],
-  methods: ["GET", "PUT", "POST", "DELETE", "OPTIONS"],
-  optionsSuccessStatus: 200
+    origin: "*",
+    allowedHeaders: [
+        "Content-Type",
+        "Authorization",
+        "Content-Length",
+        "X-Requested-With",
+        "Accept"
+    ],
+    methods: ["GET", "PUT", "POST", "DELETE", "OPTIONS"],
+    optionsSuccessStatus: 200
 };
 appCola1.use(cors(corsOptions));
 appCola2.use(cors(corsOptions));
@@ -175,7 +177,8 @@ appSucursal1.use(cors(corsOptions));
 appSucursal2.use(cors(corsOptions));
 appSucursal3.use(cors(corsOptions));
 appSucursal4.use(cors(corsOptions));
-appSucursal4.use(cors(corsOptions));
+appSucursal5.use(cors(corsOptions));
+appSucursal6.use(cors(corsOptions));
 appTipo_estado_turno1.use(cors(corsOptions));
 appTipo_estado_turno2.use(cors(corsOptions));
 appTipo_estado_turno3.use(cors(corsOptions));
@@ -201,140 +204,146 @@ appUsuario5.use(cors(corsOptions));
 
 //console.log(path.resolve(__dirname, './turnos-virtuales-firebase-adminsdk-9458v-51213b498f.json'));
 firebase.initializeApp({
-  credential: firebase.credential.cert(
-    require("./turnos-virtuales-firebase-adminsdk-9458v-51213b498f.json")
-  ),
-  databaseURL: "https://turnos-virtuales.firebaseio.com/"
+    credential: firebase.credential.cert(
+        require("./turnos-virtuales-firebase-adminsdk-9458v-51213b498f.json")
+    ),
+    databaseURL: "https://turnos-virtuales.firebaseio.com/"
 });
 
 //crudTurnos
 //get usuario desde un turno en especifico, mandando ID==========================
 
 appTurno1.get("/gT/:id", (req, res) => {
-  const turnos = firebase.database().ref("/turno"); // Referencia a la base de datos
-  turnos.on("value", snapshot => {
-    snapshot.forEach(function(childSnapshot) {
-      var key = childSnapshot.key;
-      if (key === req.params.id) {
-        res.send(childSnapshot.val());
-      }
+    const turnos = firebase.database().ref("/turno"); // Referencia a la base de datos
+    turnos.on("value", snapshot => {
+        snapshot.forEach(function(childSnapshot) {
+            var key = childSnapshot.key;
+            if (key === req.params.id) {
+                res.send(childSnapshot.val());
+            }
+        });
     });
-  });
 });
 exports.getTurnoById = functions.https.onRequest(appTurno1);
 
 //Get all desde tabla turno==================================
 
 appTurno2.get("/gT", (req, res) => {
-  const turnos = firebase.database().ref("/turno"); // Referencia a la base de datos
-  turnos.on("value", snapshot => {
-    res.json(snapshot.val());
-    //res.json(snapshot.val()); //Manda los datos obtenidos en JSON
-  });
+    const turnos = firebase.database().ref("/turno"); // Referencia a la base de datos
+    turnos.on("value", snapshot => {
+        res.json(snapshot.val());
+        //res.json(snapshot.val()); //Manda los datos obtenidos en JSON
+    });
 });
 exports.getTurnos = functions.https.onRequest(appTurno2);
 
 //crear un turno nuevo en la tabla turno==============================
 
 appTurno3.post("/pT", (req, res) => {
-  const turnos = firebase.database().ref("/turno");
-  let turno = req.body; // El objeto que mandamos.'
-  turno.hora_pedido = calcularHora();
-  turno.fecha = calularFecha();
-  const { error } = validateTurno(turno); //valida el turno contra el esquema
+    const turnos = firebase.database().ref("/turno");
+    let turno = req.body; // El objeto que mandamos.'
+    turno.hora_pedido = calcularHora();
+    turno.fecha = calularFecha();
+    const { error } = validateTurno(turno); //valida el turno contra el esquema
+    if (error) {
+        res.status(400).send(error.details[0].message);
+        return;
+    }
 
-  if (error) {
-    res.status(400).send(error.details[0].message);
-    return;
-  }
+    let generado = turnos
+        .push(turno) // Crea un nuevo objeto con ID aleatorio.
+        .catch(err => res.json(err));
+    let key = generado.key;
 
-  turnos
-    .push(turno) // Crea un nuevo objeto con ID aleatorio.
-    .then(res.json(turno))
-    .catch(err => res.json(err));
+    turnos.on("value", snapshot => {
+        snapshot.forEach(function(childSnapshot) {
+            var keyhijo = childSnapshot.key;
+
+            if (keyhijo === key) {
+                childSnapshot.ref.update({
+                    tiempo_estimado_espera: calcularTiempoFila(key)
+                });
+                res.json(turno);
+            }
+        });
+    });
 });
+
 exports.postTurno = functions.https.onRequest(appTurno3);
 
 //editar turno existente=================================================
 
 appTurno4.put("/eT/:id", (req, res) => {
-  const turnos = firebase.database().ref("/turno");
-  const turno = req.body; // El objeto que mandamos.
-  const { error } = validateTurno(turno);
-  if (error) {
-    res.status(400).send(error.details[0].message);
-    return;
-  }
+    const turnos = firebase.database().ref("/turno");
+    const turno = req.body; // El objeto que mandamos.
+    const { error } = validateTurno(turno);
+    if (error) {
+        res.status(400).send(error.details[0].message);
+        return;
+    }
 
-  turnos.on("value", snapshot => {
-    snapshot.forEach(function(childSnapshot) {
-      var key = childSnapshot.key;
+    turnos.on("value", snapshot => {
+        snapshot.forEach(function(childSnapshot) {
+            var key = childSnapshot.key;
 
-      if (key === req.params.id) {
-        if (req.body.id_usuario) {
-          childSnapshot.ref.update({ id_usuario: req.body.id_usuario });
-        }
-        if (req.body.id_negocio) {
-          childSnapshot.ref.update({ id_negocio: req.body.id_negocio });
-        }
-        if (req.body.id_cola) {
-          childSnapshot.ref.update({ id_cola: req.body.id_cola });
-        }
-        if (req.body.id_estacion_trabajo) {
-          childSnapshot.ref.update({
-            id_estacion_trabajo: req.body.id_estacion_trabajo
-          });
-        }
-        if (req.body.id_estado) {
-          childSnapshot.ref.update({ id_estado: req.body.id_estado });
-        }
-        if (req.body.id_servicio) {
-          childSnapshot.ref.update({ id_servicio: req.body.id_servicio });
-        }
-        if (req.body.id_sucursal) {
-          childSnapshot.ref.update({ id_sucursal: req.body.id_sucursal });
-        }
-        if (req.body.no_turno) {
-          childSnapshot.ref.update({ no_turno: req.body.no_turno });
-        }
-        if (req.body.tiempo_estimado_espera) {
-          childSnapshot.ref.update({
-            tiempo_estimado_espera: req.body.tiempo_estimado_espera
-          });
-        }
-        if (req.body.presente) {
-          childSnapshot.ref.update({ presente: req.body.presente });
-        }
-        if (req.body.activo) {
-          childSnapshot.ref.update({ activo: req.body.activo });
-        }
-
-        childSnapshot.ref.update({ duracion_turno: "00" });
-        childSnapshot.ref.update({ fecha: "00/00/00" });
-        childSnapshot.ref.update({ hora_finalizado: "00:00:00" });
-        childSnapshot.ref.update({ hora_inicio_atencion: "00:00:00" });
-        childSnapshot.ref.update({ hora_pedido: calcularHora() });
-
-        res.send(childSnapshot);
-      }
+            if (key === req.params.id) {
+                if (req.body.id_usuario) {
+                    childSnapshot.ref.update({ id_usuario: req.body.id_usuario });
+                }
+                if (req.body.id_negocio) {
+                    childSnapshot.ref.update({ id_negocio: req.body.id_negocio });
+                }
+                if (req.body.id_cola) {
+                    childSnapshot.ref.update({ id_cola: req.body.id_cola });
+                }
+                if (req.body.id_estacion_trabajo) {
+                    childSnapshot.ref.update({
+                        id_estacion_trabajo: req.body.id_estacion_trabajo
+                    });
+                }
+                if (req.body.id_estado) {
+                    childSnapshot.ref.update({ id_estado: req.body.id_estado });
+                }
+                if (req.body.id_servicio) {
+                    childSnapshot.ref.update({ id_servicio: req.body.id_servicio });
+                }
+                if (req.body.id_sucursal) {
+                    childSnapshot.ref.update({ id_sucursal: req.body.id_sucursal });
+                }
+                if (req.body.no_turno) {
+                    childSnapshot.ref.update({ no_turno: req.body.no_turno });
+                }
+                if (req.body.tiempo_estimado_espera) {
+                    childSnapshot.ref.update({
+                        tiempo_estimado_espera: req.body.tiempo_estimado_espera
+                    });
+                }
+                if (req.body.presente) {
+                    childSnapshot.ref.update({ presente: req.body.presente });
+                }
+                if (req.body.activo) {
+                    childSnapshot.ref.update({ activo: req.body.activo });
+                }
+                res.send(childSnapshot);
+            }
+        });
     });
-  });
 });
 exports.editTurno = functions.https.onRequest(appTurno4);
 
 //Cancelar un turno existente (no se borra, aparece como cancelado.)
 
 appTurno5.put("/can/:id", (req, res) => {
-  const turnos = firebase.database().ref("/turno");
-  turnos.on("value", snapshot => {
-    snapshot.forEach(function(childSnapshot) {
-      var key = childSnapshot.key;
-      if (key === req.params.id) {
-        childSnapshot.ref.update({ activo: "false" });
-        res.send(childSnapshot);
-      }
+    const turnos = firebase.database().ref("/turno");
+    turnos.on("value", snapshot => {
+        snapshot.forEach(function(childSnapshot) {
+            var key = childSnapshot.key;
+            if (key === req.params.id) {
+                childSnapshot.ref.update({ activo: "false" });
+                res.send(childSnapshot);
+            }
+        });
     });
-  });
 });
 
 exports.cancelTurno = functions.https.onRequest(appTurno5);
@@ -342,25 +351,25 @@ exports.cancelTurno = functions.https.onRequest(appTurno5);
 //Esquema de como debe ser un turno.
 //pueden faltar campos pero no puede tener demas el objeto que se manda.
 function validateTurno(turno) {
-  const schema = {
-    activo: Joi.string().min(4),
-    duracion_turno: Joi.string().min(2),
-    fecha: Joi.string().min(3),
-    hora_finalizado: Joi.string().min(5),
-    hora_inicio_atencion: Joi.string().min(5),
-    hora_pedido: Joi.string().min(5),
-    id_cola: Joi.string().min(6),
-    id_estacion_trabajo: Joi.string().min(6),
-    id_estado: Joi.string().min(6),
-    id_negocio: Joi.string().min(6),
-    id_servicio: Joi.string().min(6),
-    id_sucursal: Joi.string().min(6),
-    id_usuario: Joi.string().min(6),
-    no_turno: Joi.string().min(1),
-    presente: Joi.string().min(4),
-    tiempo_estimado_espera: Joi.string().min(5)
-  };
-  return Joi.validate(turno, schema);
+    const schema = {
+        activo: Joi.string().min(4),
+        duracion_turno: Joi.string().min(2),
+        fecha: Joi.string().min(3),
+        hora_finalizado: Joi.string().min(5),
+        hora_inicio_atencion: Joi.string().min(5),
+        hora_pedido: Joi.string().min(5),
+        id_cola: Joi.string().min(6),
+        id_estacion_trabajo: Joi.string().min(6),
+        id_estado: Joi.string().min(6),
+        id_negocio: Joi.string().min(6),
+        id_servicio: Joi.string().min(6),
+        id_sucursal: Joi.string().min(6),
+        id_usuario: Joi.string().min(4),
+        no_turno: Joi.string().min(1),
+        presente: Joi.string().min(4),
+        tiempo_estimado_espera: Joi.string().min(1)
+    };
+    return Joi.validate(turno, schema);
 }
 
 /**********************************************************************************************************/
@@ -368,104 +377,104 @@ function validateTurno(turno) {
 //get one negocio, mandando ID==========================
 
 appNegocio1.get("/gN/:id", (req, res) => {
-  const negocios = firebase.database().ref("/negocio"); // Referencia a la base de datos
-  negocios.on("value", snapshot => {
-    snapshot.forEach(function(childSnapshot) {
-      var key = childSnapshot.key;
-      if (key === req.params.id) {
-        res.send(childSnapshot.val());
-      }
+    const negocios = firebase.database().ref("/negocio"); // Referencia a la base de datos
+    negocios.on("value", snapshot => {
+        snapshot.forEach(function(childSnapshot) {
+            var key = childSnapshot.key;
+            if (key === req.params.id) {
+                res.send(childSnapshot.val());
+            }
+        });
     });
-  });
 });
 exports.getNegocioById = functions.https.onRequest(appNegocio1);
 
 //Get all desde tabla negocio==================================
 
 appNegocio2.get("/gN", (req, res) => {
-  const negocios = firebase.database().ref("/negocio"); // Referencia a la base de datos
-  negocios.on("value", snapshot => {
-    res.json(snapshot.val());
-  });
+    const negocios = firebase.database().ref("/negocio"); // Referencia a la base de datos
+    negocios.on("value", snapshot => {
+        res.json(snapshot.val());
+    });
 });
 exports.getNegocios = functions.https.onRequest(appNegocio2);
 
 //crear un turno nuevo en la tabla turno==============================
 
 appNegocio3.post("/pN", (req, res) => {
-  const negocios = firebase.database().ref("/negocio"),
-    negocio = req.body, // El objeto que mandamos.
-    { error } = validateNegocio(negocio); //valida el Negocio contra el esquema
+    const negocios = firebase.database().ref("/negocio"),
+        negocio = req.body, // El objeto que mandamos.
+        { error } = validateNegocio(negocio); //valida el Negocio contra el esquema
 
-  if (error) {
-    res.status(400).send(error.details[0].message);
-    return;
-  }
-  negocios
-    .push(negocio) // Crea un nuevo objeto con ID aleatorio.
-    .then(res.json(negocio))
-    .catch(err => res.json(err));
+    if (error) {
+        res.status(400).send(error.details[0].message);
+        return;
+    }
+    negocios
+        .push(negocio) // Crea un nuevo objeto con ID aleatorio.
+        .then(res.json(negocio))
+        .catch(err => res.json(err));
 });
 exports.postNegocio = functions.https.onRequest(appNegocio3);
 
 //editar turno existente=================================================
 
 appNegocio4.put("/eN/:id", (req, res) => {
-  const negocios = firebase.database().ref("/negocio");
-  const negocio = req.body; // El objeto que mandamos.
-  const { error } = validateNegocio(negocio);
-  if (error) {
-    res.status(400).send(error.details[0].message);
-    return;
-  }
+    const negocios = firebase.database().ref("/negocio");
+    const negocio = req.body; // El objeto que mandamos.
+    const { error } = validateNegocio(negocio);
+    if (error) {
+        res.status(400).send(error.details[0].message);
+        return;
+    }
 
-  negocios.on("value", snapshot => {
-    snapshot.forEach(function(childSnapshot) {
-      var key = childSnapshot.key;
-      if (key === req.params.id) {
-        if (req.body.descripcion) {
-          childSnapshot.ref.update({ descripcion: req.body.descripcion });
-        }
-        if (req.body.id_admin) {
-          childSnapshot.ref.update({ id_admin: req.body.id_admin });
-        }
-        if (req.body.nombre) {
-          childSnapshot.ref.update({ nombre: req.body.nombre });
-        }
-        if (req.body.activo) {
-          childSnapshot.ref.update({ nombre: req.body.activo });
-        }
-        res.send(childSnapshot);
-      }
+    negocios.on("value", snapshot => {
+        snapshot.forEach(function(childSnapshot) {
+            var key = childSnapshot.key;
+            if (key === req.params.id) {
+                if (req.body.descripcion) {
+                    childSnapshot.ref.update({ descripcion: req.body.descripcion });
+                }
+                if (req.body.id_admin) {
+                    childSnapshot.ref.update({ id_admin: req.body.id_admin });
+                }
+                if (req.body.nombre) {
+                    childSnapshot.ref.update({ nombre: req.body.nombre });
+                }
+                if (req.body.activo) {
+                    childSnapshot.ref.update({ nombre: req.body.activo });
+                }
+                res.send(childSnapshot);
+            }
+        });
     });
-  });
 });
 exports.editNegocio = functions.https.onRequest(appNegocio4);
 
 //Cancelar un negocio existente (no se borra, aparece como cancelado.)
 
 appNegocio5.put("/can/:id", (req, res) => {
-  const negocios = firebase.database().ref("/negocio");
-  negocios.on("value", snapshot => {
-    snapshot.forEach(function(childSnapshot) {
-      var key = childSnapshot.key;
-      if (key === req.params.id) {
-        childSnapshot.ref.update({ activo: "false" });
-        res.send(childSnapshot);
-      }
+    const negocios = firebase.database().ref("/negocio");
+    negocios.on("value", snapshot => {
+        snapshot.forEach(function(childSnapshot) {
+            var key = childSnapshot.key;
+            if (key === req.params.id) {
+                childSnapshot.ref.update({ activo: "false" });
+                res.send(childSnapshot);
+            }
+        });
     });
-  });
 });
 exports.cancelNegocio = functions.https.onRequest(appNegocio5);
 
 function validateNegocio(negocio) {
-  const schema = {
-    descripcion: Joi.string().min(10),
-    id_admin: Joi.string().min(6),
-    nombre: Joi.string().min(5),
-    activo: Joi.string().min(4)
-  };
-  return Joi.validate(negocio, schema);
+    const schema = {
+        descripcion: Joi.string().min(10),
+        id_admin: Joi.string().min(6),
+        nombre: Joi.string().min(5),
+        activo: Joi.string().min(4)
+    };
+    return Joi.validate(negocio, schema);
 }
 
 /**********************************************************************************************************/
@@ -473,110 +482,134 @@ function validateNegocio(negocio) {
 //get one negocio, mandando ID==========================
 
 appSucursal1.get("/gS/:id", (req, res) => {
-  const sucursales = firebase.database().ref("/sucursal"); // Referencia a la base de datos
-  sucursales.on("value", snapshot => {
-    snapshot.forEach(function(childSnapshot) {
-      var key = childSnapshot.key;
-      if (key === req.params.id) {
-        res.send(childSnapshot.val());
-      }
+    const sucursales = firebase.database().ref("/sucursal"); // Referencia a la base de datos
+    sucursales.on("value", snapshot => {
+        snapshot.forEach(function(childSnapshot) {
+            var key = childSnapshot.key;
+            if (key === req.params.id) {
+                res.send(childSnapshot.val());
+            }
+        });
     });
-  });
 });
 exports.getSucursalById = functions.https.onRequest(appSucursal1);
 
 //Get all desde tabla negocio==================================
 
 appSucursal2.get("/gS", (req, res) => {
-  const sucursales = firebase.database().ref("/sucursal"); // Referencia a la base de datos
-  sucursales.on("value", snapshot => {
-    res.json(snapshot.val());
-  });
+    const sucursales = firebase.database().ref("/sucursal"); // Referencia a la base de datos
+    sucursales.on("value", snapshot => {
+        res.json(snapshot.val());
+    });
 });
 exports.getSucursales = functions.https.onRequest(appSucursal2);
 
 //crear un turno nuevo en la tabla turno==============================
 
 appSucursal3.post("/pS", (req, res) => {
-  const sucursales = firebase.database().ref("/sucursal"),
-    sucursal = req.body, // El objeto que mandamos.
-    { error } = validateSucursal(sucursal); //valida el Negocio contra el esquema
+    const sucursales = firebase.database().ref("/sucursal"),
+        sucursal = req.body, // El objeto que mandamos.
+        { error } = validateSucursal(sucursal); //valida el Negocio contra el esquema
 
-  if (error) {
-    res.status(400).send(error.details[0].message);
-    return;
-  }
-  sucursales
-    .push(sucursal) // Crea un nuevo objeto con ID aleatorio.
-    .then(res.json(sucursal))
-    .catch(err => res.json(err));
+    if (error) {
+        res.status(400).send(error.details[0].message);
+        return;
+    }
+    sucursales
+        .push(sucursal) // Crea un nuevo objeto con ID aleatorio.
+        .then(res.json(sucursal))
+        .catch(err => res.json(err));
 });
 exports.postSucursal = functions.https.onRequest(appSucursal3);
 
 //editar turno existente=================================================
 
 appSucursal4.put("/eS/:id", (req, res) => {
-  const sucursales = firebase.database().ref("/sucursal");
-  const sucursal = req.body; // El objeto que mandamos.
-  const { error } = validateNegocio(sucursal);
-  if (error) {
-    res.status(400).send(error.details[0].message);
-    return;
-  }
+    const sucursales = firebase.database().ref("/sucursal");
+    const sucursal = req.body; // El objeto que mandamos.
+    const { error } = validateNegocio(sucursal);
+    if (error) {
+        res.status(400).send(error.details[0].message);
+        return;
+    }
 
-  sucursales.on("value", snapshot => {
-    snapshot.forEach(function(childSnapshot) {
-      var key = childSnapshot.key;
-      if (key === req.params.id) {
-        if (req.body.cant_personas_presentes) {
-          childSnapshot.ref.update({
-            cant_personas_presentes: req.body.cant_personas_presentes
-          });
-        }
-        if (req.body.descripcion) {
-          childSnapshot.ref.update({ descripcion: req.body.descripcion });
-        }
-        if (req.body.id_negocio) {
-          childSnapshot.ref.update({ id_negocio: req.body.id_negocio });
-        }
-        if (req.body.nombre) {
-          childSnapshot.ref.update({ nombre: req.body.nombre });
-        }
-        if (req.body.activo) {
-          childSnapshot.ref.update({ nombre: req.body.activo });
-        }
-        res.send(childSnapshot);
-      }
+    sucursales.on("value", snapshot => {
+        snapshot.forEach(function(childSnapshot) {
+            var key = childSnapshot.key;
+            if (key === req.params.id) {
+                if (req.body.cant_personas_presentes) {
+                    childSnapshot.ref.update({
+                        cant_personas_presentes: req.body.cant_personas_presentes
+                    });
+                }
+                if (req.body.descripcion) {
+                    childSnapshot.ref.update({ descripcion: req.body.descripcion });
+                }
+                if (req.body.id_negocio) {
+                    childSnapshot.ref.update({ id_negocio: req.body.id_negocio });
+                }
+                if (req.body.nombre) {
+                    childSnapshot.ref.update({ nombre: req.body.nombre });
+                }
+                if (req.body.activo) {
+                    childSnapshot.ref.update({ nombre: req.body.activo });
+                }
+                res.send(childSnapshot);
+            }
+        });
     });
-  });
 });
 exports.editSucursal = functions.https.onRequest(appSucursal4);
 
 //Cancelar un negocio existente (no se borra, aparece como cancelado.)
 
 appSucursal5.put("/can/:id", (req, res) => {
-  const sucursales = firebase.database().ref("/sucursal");
-  sucursales.on("value", snapshot => {
-    snapshot.forEach(function(childSnapshot) {
-      var key = childSnapshot.key;
-      if (key === req.params.id) {
-        childSnapshot.ref.update({ activo: "false" });
-        res.send(childSnapshot);
-      }
+    const sucursales = firebase.database().ref("/sucursal");
+    sucursales.on("value", snapshot => {
+        snapshot.forEach(function(childSnapshot) {
+            var key = childSnapshot.key;
+            if (key === req.params.id) {
+                childSnapshot.ref.update({ activo: "false" });
+                res.send(childSnapshot);
+            }
+        });
     });
-  });
 });
 exports.cancelSucursal = functions.https.onRequest(appSucursal5);
 
+//Get sucursales a partir de negocios
+
+appSucursal6.get("/g/:id_negocio", (req, res) => {
+    let respuesta = {};
+    const sucursales = firebase.database().ref("/sucursal");
+    sucursales.on("value", snapshot => {
+        snapshot.forEach(function(childSnapshot) {
+            let keys = childSnapshot.key;
+            if (
+                childSnapshot.child("id_negocio").val() === req.params.id_negocio &&
+                childSnapshot.child("activo").val() === "true"
+            ) {
+                respuesta = Object.assign({
+                        [keys]: childSnapshot.val()
+                    },
+                    respuesta
+                );
+            }
+        });
+    });
+    res.send(respuesta);
+});
+exports.getSucursalByNeg = functions.https.onRequest(appSucursal6);
+
 function validateSucursal(sucursal) {
-  const schema = {
-    activo: Joi.string().min(4),
-    cant_personas_presentes: Joi.string().min(1),
-    direccion: Joi.string().min(10),
-    id_negocio: Joi.string().min(6),
-    nombre: Joi.string().min(5)
-  };
-  return Joi.validate(sucursal, schema);
+    const schema = {
+        activo: Joi.string().min(4),
+        cant_personas_presentes: Joi.string().min(1),
+        direccion: Joi.string().min(10),
+        id_negocio: Joi.string().min(6),
+        nombre: Joi.string().min(5)
+    };
+    return Joi.validate(sucursal, schema);
 }
 
 /**********************************************************************************************************/
@@ -584,114 +617,114 @@ function validateSucursal(sucursal) {
 //get one negocio, mandando ID==========================
 
 appServicio1.get("/gSer/:id", (req, res) => {
-  const servicios = firebase.database().ref("/servicio"); // Referencia a la base de datos
-  servicios.on("value", snapshot => {
-    snapshot.forEach(function(childSnapshot) {
-      var key = childSnapshot.key;
-      if (key === req.params.id) {
-        res.send(childSnapshot.val());
-      }
+    const servicios = firebase.database().ref("/servicio"); // Referencia a la base de datos
+    servicios.on("value", snapshot => {
+        snapshot.forEach(function(childSnapshot) {
+            var key = childSnapshot.key;
+            if (key === req.params.id) {
+                res.send(childSnapshot.val());
+            }
+        });
     });
-  });
 });
 exports.getServicioById = functions.https.onRequest(appServicio1);
 
 //Get all desde tabla negocio==================================
 
 appServicio2.get("/gSer", (req, res) => {
-  const servicios = firebase.database().ref("/servicio"); // Referencia a la base de datos
-  servicios.on("value", snapshot => {
-    res.json(snapshot.val());
-  });
+    const servicios = firebase.database().ref("/servicio"); // Referencia a la base de datos
+    servicios.on("value", snapshot => {
+        res.json(snapshot.val());
+    });
 });
 exports.getServicios = functions.https.onRequest(appServicio2);
 
 //crear un turno nuevo en la tabla turno==============================
 
 appServicio3.post("/pSer", (req, res) => {
-  const servicios = firebase.database().ref("/servicio"),
-    servicio = req.body, // El objeto que mandamos.
-    { error } = validateServicio(servicio); //valida el Negocio contra el esquema
+    const servicios = firebase.database().ref("/servicio"),
+        servicio = req.body, // El objeto que mandamos.
+        { error } = validateServicio(servicio); //valida el Negocio contra el esquema
 
-  if (error) {
-    res.status(400).send(error.details[0].message);
-    return;
-  }
-  servicios
-    .push(servicio) // Crea un nuevo objeto con ID aleatorio.
-    .then(res.json(servicio))
-    .catch(err => res.json(err));
+    if (error) {
+        res.status(400).send(error.details[0].message);
+        return;
+    }
+    servicios
+        .push(servicio) // Crea un nuevo objeto con ID aleatorio.
+        .then(res.json(servicio))
+        .catch(err => res.json(err));
 });
 exports.postServicio = functions.https.onRequest(appServicio3);
 
 //editar turno existente=================================================
 
 appServicio4.put("/eSer/:id", (req, res) => {
-  const servicios = firebase.database().ref("/servicio");
-  const servicio = req.body; // El objeto que mandamos.
-  const { error } = validateServicio(servicio);
-  if (error) {
-    res.status(400).send(error.details[0].message);
-    return;
-  }
+    const servicios = firebase.database().ref("/servicio");
+    const servicio = req.body; // El objeto que mandamos.
+    const { error } = validateServicio(servicio);
+    if (error) {
+        res.status(400).send(error.details[0].message);
+        return;
+    }
 
-  servicios.on("value", snapshot => {
-    snapshot.forEach(function(childSnapshot) {
-      var key = childSnapshot.key;
-      if (key === req.params.id) {
-        if (req.body.nombre) {
-          childSnapshot.ref.update({ nombre: req.body.nombre });
-        }
-        if (req.body.id_tiempo_estimado) {
-          childSnapshot.ref.update({
-            id_tiempo_estimado: req.body.id_tiempo_estimado
-          });
-        }
-        if (req.body.activo) {
-          childSnapshot.ref.update({ activo: req.body.activo });
-        }
-        if (req.body.descripcion) {
-          childSnapshot.ref.update({ descripcion: req.body.descripcion });
-        }
-        if (req.body.id_cola) {
-          childSnapshot.ref.update({ id_cola: req.body.id_cola });
-        }
-        if (req.body.id_negocio) {
-          childSnapshot.ref.update({ id_negocio: req.body.id_negocio });
-        }
-        res.send(childSnapshot);
-      }
+    servicios.on("value", snapshot => {
+        snapshot.forEach(function(childSnapshot) {
+            var key = childSnapshot.key;
+            if (key === req.params.id) {
+                if (req.body.nombre) {
+                    childSnapshot.ref.update({ nombre: req.body.nombre });
+                }
+                if (req.body.id_tiempo_estimado) {
+                    childSnapshot.ref.update({
+                        id_tiempo_estimado: req.body.id_tiempo_estimado
+                    });
+                }
+                if (req.body.activo) {
+                    childSnapshot.ref.update({ activo: req.body.activo });
+                }
+                if (req.body.descripcion) {
+                    childSnapshot.ref.update({ descripcion: req.body.descripcion });
+                }
+                if (req.body.id_cola) {
+                    childSnapshot.ref.update({ id_cola: req.body.id_cola });
+                }
+                if (req.body.id_negocio) {
+                    childSnapshot.ref.update({ id_negocio: req.body.id_negocio });
+                }
+                res.send(childSnapshot);
+            }
+        });
     });
-  });
 });
 exports.editServicio = functions.https.onRequest(appServicio4);
 
 //Cancelar un negocio existente (no se borra, aparece como cancelado.)
 
 appServicio5.put("/can/:id", (req, res) => {
-  const servicios = firebase.database().ref("/servicio");
-  servicios.on("value", snapshot => {
-    snapshot.forEach(function(childSnapshot) {
-      var key = childSnapshot.key;
-      if (key === req.params.id) {
-        childSnapshot.ref.update({ activo: "false" });
-        res.send(childSnapshot);
-      }
+    const servicios = firebase.database().ref("/servicio");
+    servicios.on("value", snapshot => {
+        snapshot.forEach(function(childSnapshot) {
+            var key = childSnapshot.key;
+            if (key === req.params.id) {
+                childSnapshot.ref.update({ activo: "false" });
+                res.send(childSnapshot);
+            }
+        });
     });
-  });
 });
 exports.cancelServicio = functions.https.onRequest(appServicio5);
 
 function validateServio(servicio) {
-  const schema = {
-    activo: Joi.string().min(4),
-    descripcion: Joi.string().min(10),
-    id_cola: Joi.string().min(6),
-    id_negocio: Joi.string().min(6),
-    id_tiempo_estimado: Joi.string().min(2),
-    nombre: Joi.string().min(4)
-  };
-  return Joi.validate(servicio, schema);
+    const schema = {
+        activo: Joi.string().min(4),
+        descripcion: Joi.string().min(10),
+        id_cola: Joi.string().min(6),
+        id_negocio: Joi.string().min(6),
+        id_tiempo_estimado: Joi.string().min(2),
+        nombre: Joi.string().min(4)
+    };
+    return Joi.validate(servicio, schema);
 }
 
 /**********************************************************************************************************/
@@ -699,235 +732,270 @@ function validateServio(servicio) {
 //get one Cola, mandando ID==========================
 
 appCola1.get("/gC/:id", (req, res) => {
-  const colas = firebase.database().ref("/cola"); // Referencia a la base de datos
-  colas.on("value", snapshot => {
-    snapshot.forEach(function(childSnapshot) {
-      var key = childSnapshot.key;
-      if (key === req.params.id) {
-        res.send(childSnapshot.val());
-      }
+    const colas = firebase.database().ref("/cola"); // Referencia a la base de datos
+    colas.on("value", snapshot => {
+        snapshot.forEach(function(childSnapshot) {
+            var key = childSnapshot.key;
+            if (key === req.params.id) {
+                res.send(childSnapshot.val());
+            }
+        });
     });
-  });
 });
 exports.getColaById = functions.https.onRequest(appCola1);
 
 //Get all desde tabla negocio==================================
 
 appCola2.get("/gC", (req, res) => {
-  const colas = firebase.database().ref("/cola"); // Referencia a la base de datos
-  colas.on("value", snapshot => {
-    res.json(snapshot.val());
-  });
+    const colas = firebase.database().ref("/cola"); // Referencia a la base de datos
+    colas.on("value", snapshot => {
+        res.json(snapshot.val());
+    });
 });
 exports.getColas = functions.https.onRequest(appCola2);
 
 //crear un turno nuevo en la tabla turno==============================
 
 appCola3.post("/pC", (req, res) => {
-  const colas = firebase.database().ref("/cola"),
-    cola = req.body, // El objeto que mandamos.
-    { error } = validateCola(cola); //valida el Negocio contra el esquema
+    const colas = firebase.database().ref("/cola"),
+        cola = req.body, // El objeto que mandamos.
+        { error } = validateCola(cola); //valida el Negocio contra el esquema
 
-  if (error) {
-    res.status(400).send(error.details[0].message);
-    return;
-  }
-  colas
-    .push(cola) // Crea un nuevo objeto con ID aleatorio.
-    .then(res.json(cola))
-    .catch(err => res.json(err));
+    if (error) {
+        res.status(400).send(error.details[0].message);
+        return;
+    }
+    colas
+        .push(cola) // Crea un nuevo objeto con ID aleatorio.
+        .then(res.json(cola))
+        .catch(err => res.json(err));
 });
 exports.postCola = functions.https.onRequest(appCola3);
 
 //editar turno existente=================================================
 
 appCola4.put("/eC/:id", (req, res) => {
-  const colas = firebase.database().ref("/cola");
-  const cola = req.body; // El objeto que mandamos.
-  const { error } = validateServicio(cola);
-  if (error) {
-    res.status(400).send(error.details[0].message);
-    return;
-  }
+    const colas = firebase.database().ref("/cola");
+    const cola = req.body; // El objeto que mandamos.
+    const { error } = validateServicio(cola);
+    if (error) {
+        res.status(400).send(error.details[0].message);
+        return;
+    }
 
-  colas.on("value", snapshot => {
-    snapshot.forEach(function(childSnapshot) {
-      var key = childSnapshot.key;
-      if (key === req.params.id) {
-        if (req.body.nombre) {
-          childSnapshot.ref.update({ nombre: req.body.nombre });
-        }
-        if (req.body.id_sucursal) {
-          childSnapshot.ref.update({
-            id_sucursal: req.body.id_sucursal
-          });
-        }
-        if (req.body.activo) {
-          childSnapshot.ref.update({ activo: req.body.activo });
-        }
-        if (req.body.descripcion) {
-          childSnapshot.ref.update({ descripcion: req.body.descripcion });
-        }
-        if (req.body.id_negocio) {
-          childSnapshot.ref.update({ id_negocio: req.body.id_negocio });
-        }
-        res.send(childSnapshot);
-      }
+    colas.on("value", snapshot => {
+        snapshot.forEach(function(childSnapshot) {
+            var key = childSnapshot.key;
+            if (key === req.params.id) {
+                if (req.body.nombre) {
+                    childSnapshot.ref.update({ nombre: req.body.nombre });
+                }
+                if (req.body.id_sucursal) {
+                    childSnapshot.ref.update({
+                        id_sucursal: req.body.id_sucursal
+                    });
+                }
+                if (req.body.activo) {
+                    childSnapshot.ref.update({ activo: req.body.activo });
+                }
+                if (req.body.descripcion) {
+                    childSnapshot.ref.update({ descripcion: req.body.descripcion });
+                }
+                if (req.body.id_negocio) {
+                    childSnapshot.ref.update({ id_negocio: req.body.id_negocio });
+                }
+                res.send(childSnapshot);
+            }
+        });
     });
-  });
 });
 exports.editCola = functions.https.onRequest(appCola4);
 
 //Cancelar un negocio existente (no se borra, aparece como cancelado.)
 
 appCola5.put("/can/:id", (req, res) => {
-  const colas = firebase.database().ref("/cola");
-  colas.on("value", snapshot => {
-    snapshot.forEach(function(childSnapshot) {
-      var key = childSnapshot.key;
-      if (key === req.params.id) {
-        childSnapshot.ref.update({ activo: "false" });
-        res.send(childSnapshot);
-      }
+    const colas = firebase.database().ref("/cola");
+    colas.on("value", snapshot => {
+        snapshot.forEach(function(childSnapshot) {
+            var key = childSnapshot.key;
+            if (key === req.params.id) {
+                childSnapshot.ref.update({ activo: "false" });
+                res.send(childSnapshot);
+            }
+        });
     });
-  });
 });
 exports.cancelCola = functions.https.onRequest(appCola5);
 
 //--------------------------------------------------------------------------------------------------------
 
 appTurno11.put("/update/:id", (req, res) => {
-  const turnos = firebase.database().ref("/turno");
-  const turno = req.body; // El objeto que mandamos.
-  const { error } = validateTurno(turno);
-  if (error) {
-    res.status(400).send(error.details[0].message);
-    return;
-  }
-  turnos.on("value", snapshot => {
-    snapshot.forEach(function(childSnapshot) {
-      var key = childSnapshot.key;
-      if (key === req.params.id) {
-        childSnapshot.ref.update({ hora_inicio_atencion: calcularHora() });
-        res.send(childSnapshot);
-      }
+    const turnos = firebase.database().ref("/turno");
+    const turno = req.body; // El objeto que mandamos.
+    const { error } = validateTurno(turno);
+    if (error) {
+        res.status(400).send(error.details[0].message);
+        return;
+    }
+    turnos.on("value", snapshot => {
+        snapshot.forEach(function(childSnapshot) {
+            var key = childSnapshot.key;
+            if (key === req.params.id) {
+                childSnapshot.ref.update({ hora_inicio_atencion: calcularHora() });
+                res.send(childSnapshot);
+            }
+        });
     });
-  });
 });
 exports.setHoraInicioTurno = functions.https.onRequest(appTurno11);
 
 appTurno12.put("/update/:id", (req, res) => {
-  const turnos = firebase.database().ref("/turno");
-  const turno = req.body; // El objeto que mandamos.
-  const { error } = validateTurno(turno);
-  if (error) {
-    res.status(400).send(error.details[0].message);
-    return;
-  }
-  turnos.on("value", snapshot => {
-    snapshot.forEach(function(childSnapshot) {
-      var key = childSnapshot.key;
-      if (key === req.params.id) {
-        childSnapshot.ref.update({ activo: "false" });
-        childSnapshot.ref.update({ hora_finalizado: calcularHora() });
-        childSnapshot.ref.update({
-          duracion_turno: calcularDuracion(
-            childSnapshot.child("hora_inicio_atencion").val(),
-            childSnapshot.child("hora_finalizado").val()
-          )
+    const turnos = firebase.database().ref("/turno");
+    const turno = req.body; // El objeto que mandamos.
+    const { error } = validateTurno(turno);
+    if (error) {
+        res.status(400).send(error.details[0].message);
+        return;
+    }
+    turnos.on("value", snapshot => {
+        snapshot.forEach(function(childSnapshot) {
+            var key = childSnapshot.key;
+            if (key === req.params.id) {
+                childSnapshot.ref.update({ activo: "false" });
+                childSnapshot.ref.update({ hora_finalizado: calcularHora() });
+                childSnapshot.ref.update({
+                    duracion_turno: calcularDuracion(
+                        childSnapshot.child("hora_inicio_atencion").val(),
+                        childSnapshot.child("hora_finalizado").val()
+                    )
+                });
+                updateTiempoServicio(
+                    childSnapshot.child("duracion_turno").val(),
+                    childSnapshot.child("id_servicio").val()
+                );
+                res.send(childSnapshot);
+            }
         });
-        updateTiempoServicio(
-          childSnapshot.child("duracion_turno").val(),
-          childSnapshot.child("id_servicio").val()
-        );
-        res.send(childSnapshot);
-      }
     });
-  });
 });
 exports.setHoraFinalizaTurno = functions.https.onRequest(appTurno12);
 
 function validateCola(cola) {
-  const schema = {
-    activo: Joi.string().min(4),
-    descripcion: Joi.string().min(10),
-    id_negocio: Joi.string().min(6),
-    id_sucursal: Joi.string().min(6),
-    nombre: Joi.string().min(4)
-  };
-  return Joi.validate(cola, schema);
+    const schema = {
+        activo: Joi.string().min(4),
+        descripcion: Joi.string().min(10),
+        id_negocio: Joi.string().min(6),
+        id_sucursal: Joi.string().min(6),
+        nombre: Joi.string().min(4)
+    };
+    return Joi.validate(cola, schema);
 }
 
 function updateTiempoServicio(tiempo, id_servicio) {
-  const servicios = firebase.database().ref("/servicio");
-  servicios.on("value", snapshot => {
-    snapshot.forEach(function(childSnapshot) {
-      var key = childSnapshot.key;
-      if (key === id_servicio) {
-        childSnapshot.ref.update({
-          id_tiempo_estimado: calcularPromedio(
-            tiempo,
-            childSnapshot.child("id_tiempo_estimado").val()
-          )
+    const servicios = firebase.database().ref("/servicio");
+    servicios.on("value", snapshot => {
+        snapshot.forEach(function(childSnapshot) {
+            var key = childSnapshot.key;
+            if (key === id_servicio) {
+                childSnapshot.ref.update({
+                    id_tiempo_estimado: calcularPromedio(
+                        tiempo,
+                        childSnapshot.child("id_tiempo_estimado").val()
+                    )
+                });
+            }
         });
-      }
     });
-  });
 }
 
 function calcularPromedio(num, num2) {
-  let numero1 = parseInt(num);
-  let numero2 = parseInt(num2);
-  let resultado = (numero1 + numero2) / 2;
-  return resultado.toString();
+    let numero1 = parseInt(num);
+    let numero2 = parseInt(num2);
+    let resultado = (numero1 + numero2) / 2;
+    return resultado.toString();
 }
 
 function calcularDuracion(inicio, fin) {
-  let inicioMinutos = parseInt(inicio.substr(3, 2));
-  let inicioHoras = parseInt(inicio.substr(0, 2));
+    let inicioMinutos = parseInt(inicio.substr(3, 2));
+    let inicioHoras = parseInt(inicio.substr(0, 2));
 
-  let finMinutos = parseInt(fin.substr(3, 2));
-  let finHoras = parseInt(fin.substr(0, 2));
+    let finMinutos = parseInt(fin.substr(3, 2));
+    let finHoras = parseInt(fin.substr(0, 2));
 
-  let transcurridoMinutos = finMinutos - inicioMinutos;
-  let transcurridoHoras = finHoras - inicioHoras;
+    let transcurridoMinutos = finMinutos - inicioMinutos;
+    let transcurridoHoras = finHoras - inicioHoras;
 
-  if (transcurridoMinutos < 0) {
-    transcurridoHoras--;
-    transcurridoMinutos = 60 + transcurridoMinutos + transcurridoHoras * 60;
-  }
+    if (transcurridoMinutos < 0) {
+        transcurridoHoras--;
+        transcurridoMinutos = 60 + transcurridoMinutos + transcurridoHoras * 60;
+    }
 
-  return transcurridoMinutos.toString();
+    return transcurridoMinutos.toString();
 }
 
 function calularFecha() {
-  const fecha = new Date();
-  let dia = fecha.getUTCDate();
-  let mes = fecha.getMonth();
-  let year = fecha.getFullYear();
-  return dia + "/" + mes + "/" + year;
+    const fecha = new Date();
+    let dia = fecha.getUTCDate();
+    let mes = fecha.getMonth();
+    let year = fecha.getFullYear();
+    return dia + "/" + mes + "/" + year;
 }
 
 function calcularHora() {
-  const fecha = new Date();
-  let horas = fecha.getHours() - 4;
-  let minutos = fecha.getMinutes();
-  let segundos = fecha.getSeconds();
+    const fecha = new Date();
+    let horas = fecha.getHours() - 4;
+    let minutos = fecha.getMinutes();
+    let segundos = fecha.getSeconds();
 
-  if (horas.length < 2) {
-    horas = "0" + horas;
-  }
+    if (horas.length < 2) {
+        horas = "0" + horas;
+    }
 
-  if (horas.length < 2) {
-    horas = "0" + horas;
-  }
+    if (horas.length < 2) {
+        horas = "0" + horas;
+    }
 
-  if (minutos.length < 2) {
-    minutos = "0" + minutos;
-  }
+    if (minutos.length < 2) {
+        minutos = "0" + minutos;
+    }
 
-  if (minutos.length < 2) {
-    minutos = "0" + minutos;
-  }
-  return horas + ":" + minutos + ":" + segundos;
+    if (minutos.length < 2) {
+        minutos = "0" + minutos;
+    }
+    return horas + ":" + minutos + ":" + segundos;
+}
+
+function calTiempoEspera(hora, sucursal) {
+    const turnos = firebase.database().ref("/turno");
+    let tiempo = 0;
+    turnos.on("value", snapshot => {
+        snapshot.forEach(function(childSnapshot) {
+            var snap = childSnapshot.child("id_sucursal").val();
+            if (snap === sucursal) {
+                tiempo = tiempo + parseInt(childSnapshot.child("duracion_turno").val());
+            }
+        });
+    });
+
+    return hora;
+}
+
+function calcularTiempoFila(id) {
+    let obj = { id_turno: id.toString() };
+    /*  const turnos = firebase.database().ref("/turno");
+                                  const colas = firebase.database().ref("/cola");
+                                  colas.on("value", snapshot => {
+                                      snapshot.forEach(function(childSnapshot) {
+                                          var key = childSnapshot.key;
+                                          if (key === turnos.child(id.toString()).child("id_cola")) {
+                                              childSnapshot.child("pila").push(obj);
+                                              return childSnapshot
+                                                  .child("pila")
+                                                  .val()
+                                                  .toString();
+                                          }
+                                      });
+                                  });*/
+
+    return /*Obj.id_turno.val()*/ "jola";
 }
