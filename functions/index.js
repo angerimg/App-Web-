@@ -14,6 +14,9 @@ const appTurno4 = express();
 const appTurno5 = express();
 const appTurno11 = express();
 const appTurno12 = express();
+const appTurno6 = express();
+const appTurno7 = express();
+const appTurno8 = express();
 
 appTurno1.use(express.json());
 appTurno2.use(express.json());
@@ -22,6 +25,9 @@ appTurno4.use(express.json());
 appTurno5.use(express.json());
 appTurno11.use(express.json());
 appTurno12.use(express.json());
+appTurno6.use(express.json());
+appTurno7.use(express.json());
+appTurno8.use(express.json());
 
 ////////
 const appNegocio1 = express(); //
@@ -59,12 +65,14 @@ const appServicio2 = express();
 const appServicio3 = express();
 const appServicio4 = express();
 const appServicio5 = express();
+const appServicio6 = express();
 
 appServicio1.use(express.json());
 appServicio2.use(express.json());
 appServicio3.use(express.json());
 appServicio4.use(express.json());
 appServicio5.use(express.json());
+appServicio6.use(express.json());
 
 ////////
 
@@ -73,12 +81,14 @@ const appCola2 = express();
 const appCola3 = express();
 const appCola4 = express();
 const appCola5 = express();
+const appCola6 = express();
 
 appCola1.use(express.json());
 appCola2.use(express.json());
 appCola3.use(express.json());
 appCola4.use(express.json());
 appCola5.use(express.json());
+appCola6.use(express.json());
 
 ////////
 
@@ -158,6 +168,7 @@ appCola2.use(cors(corsOptions));
 appCola3.use(cors(corsOptions));
 appCola4.use(cors(corsOptions));
 appCola5.use(cors(corsOptions));
+appCola6.use(cors(corsOptions));
 appEstacion_trabajo1.use(cors(corsOptions));
 appEstacion_trabajo2.use(cors(corsOptions));
 appEstacion_trabajo3.use(cors(corsOptions));
@@ -173,6 +184,7 @@ appServicio2.use(cors(corsOptions));
 appServicio3.use(cors(corsOptions));
 appServicio4.use(cors(corsOptions));
 appServicio5.use(cors(corsOptions));
+appServicio6.use(cors(corsOptions));
 appSucursal1.use(cors(corsOptions));
 appSucursal2.use(cors(corsOptions));
 appSucursal3.use(cors(corsOptions));
@@ -253,20 +265,20 @@ appTurno3.post("/pT", (req, res) => {
     let generado = turnos
         .push(turno) // Crea un nuevo objeto con ID aleatorio.
         .catch(err => res.json(err));
-    let key = generado.key;
 
-    turnos.on("value", snapshot => {
-        snapshot.forEach(function(childSnapshot) {
-            var keyhijo = childSnapshot.key;
+    res.json(turno);
+    /*
+              turnos.push({
+                  id: item.key,
+                  items: item.val().item
+              });
 
-            if (keyhijo === key) {
-                childSnapshot.ref.update({
-                    tiempo_estimado_espera: calcularTiempoFila(key)
-                });
-                res.json(turno);
-            }
-        });
-    });
+              let resp = turnos.on("child_added", function(snapshot) {
+                  return snapshot.key(); //This will print that unique key
+              });
+
+              response.send(resp);
+              // res.send(generado.val());*/
 });
 
 exports.postTurno = functions.https.onRequest(appTurno3);
@@ -348,6 +360,53 @@ appTurno5.put("/can/:id", (req, res) => {
 
 exports.cancelTurno = functions.https.onRequest(appTurno5);
 
+appTurno6.get("/gTP/:id_cola", (req, res) => {
+    let respuesta = {};
+    const turnos = firebase.database().ref("/turno");
+    turnos.on("value", snapshot => {
+        snapshot.forEach(function(childSnapshot) {
+            let keys = childSnapshot.key;
+            if (
+                childSnapshot.child("presente").val() === "true" &&
+                childSnapshot.child("activo").val() === "true" &&
+                childSnapshot.child("id_cola").val() === req.params.id_cola
+            ) {
+                respuesta = Object.assign({
+                        [keys]: childSnapshot.val()
+                    },
+                    respuesta
+                );
+            }
+        });
+    });
+    res.send(respuesta);
+});
+exports.getTurnosPresentes = functions.https.onRequest(appTurno6);
+
+//Check in turno=================================================
+/**hay que mandarle un json
+ * {id_usuario:id,
+ * id_sucursal: id}
+ */
+appTurno7.put("/checkin", (req, res) => {
+    const turnos = firebase.database().ref("/turno");
+    const turno = req.body; // El objeto que mandamos.
+    turnos.on("value", snapshot => {
+        snapshot.forEach(function(childSnapshot) {
+            if (
+                childSnapshot.child("id_usuario").val() === turno.id_usuario &&
+                childSnapshot.child("id_sucursal").val() === turno.id_sucursal
+            ) {
+                if (req.body.id_usuario) {
+                    childSnapshot.ref.update({ presente: "true" });
+                }
+                res.send(childSnapshot);
+            }
+        });
+    });
+});
+exports.checkInTurno = functions.https.onRequest(appTurno7);
+
 //Esquema de como debe ser un turno.
 //pueden faltar campos pero no puede tener demas el objeto que se manda.
 function validateTurno(turno) {
@@ -371,6 +430,30 @@ function validateTurno(turno) {
     };
     return Joi.validate(turno, schema);
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+appTurno8.get("/gBU/:id_usuario", (req, res) => {
+    let respuesta = {};
+    const turnos = firebase.database().ref("/turno");
+    turnos.on("value", snapshot => {
+        snapshot.forEach(function(childSnapshot) {
+            let keys = childSnapshot.key;
+            if (
+                childSnapshot.child("id_usuario").val() === req.params.id_usuario &&
+                childSnapshot.child("activo").val() === "true"
+            ) {
+                respuesta = Object.assign({
+                        [keys]: childSnapshot.val()
+                    },
+                    respuesta
+                );
+            }
+        });
+    });
+    res.send(respuesta);
+});
+exports.getTurnoByUsuario = functions.https.onRequest(appTurno8);
 
 /**********************************************************************************************************/
 //crudNegocio
@@ -727,6 +810,30 @@ function validateServio(servicio) {
     return Joi.validate(servicio, schema);
 }
 
+//Get Servicio a partir de sucursal
+
+appServicio6.get("/g/:id_sucursal", (req, res) => {
+    let respuesta = {};
+    const servicios = firebase.database().ref("/servicio");
+    servicios.on("value", snapshot => {
+        snapshot.forEach(function(childSnapshot) {
+            let keys = childSnapshot.key;
+            if (
+                childSnapshot.child("id_sucursal").val() === req.params.id_sucursal &&
+                childSnapshot.child("activo").val() === "true"
+            ) {
+                respuesta = Object.assign({
+                        [keys]: childSnapshot.val()
+                    },
+                    respuesta
+                );
+            }
+        });
+    });
+    res.send(respuesta);
+});
+exports.getServicioByParams = functions.https.onRequest(appServicio6);
+
 /**********************************************************************************************************/
 //crudCola
 //get one Cola, mandando ID==========================
@@ -826,6 +933,33 @@ appCola5.put("/can/:id", (req, res) => {
     });
 });
 exports.cancelCola = functions.https.onRequest(appCola5);
+
+//TODO:
+/** 
+
+appCola6.get("/g/:id_sucursal", (req, res) => {
+    let respuesta = {};
+    const servicios = firebase.database().ref("/servicio");
+    servicios.on("value", snapshot => {
+        snapshot.forEach(function(childSnapshot) {
+            let keys = childSnapshot.key;
+            if (
+                childSnapshot.child("id_sucursal").val() === req.params.id_sucursal &&
+                childSnapshot.child("activo").val() === "true"
+            ) {
+                respuesta = Object.assign({
+                        [keys]: childSnapshot.val()
+                    },
+                    respuesta
+                );
+            }
+        });
+    });
+    res.send(respuesta);
+});
+exports.getColaBySucursal = functions.https.onRequest(appCola6);
+
+*/
 
 //--------------------------------------------------------------------------------------------------------
 
@@ -983,19 +1117,19 @@ function calTiempoEspera(hora, sucursal) {
 function calcularTiempoFila(id) {
     let obj = { id_turno: id.toString() };
     /*  const turnos = firebase.database().ref("/turno");
-                                  const colas = firebase.database().ref("/cola");
-                                  colas.on("value", snapshot => {
-                                      snapshot.forEach(function(childSnapshot) {
-                                          var key = childSnapshot.key;
-                                          if (key === turnos.child(id.toString()).child("id_cola")) {
-                                              childSnapshot.child("pila").push(obj);
-                                              return childSnapshot
-                                                  .child("pila")
-                                                  .val()
-                                                  .toString();
-                                          }
-                                      });
-                                  });*/
+                                                                                      const colas = firebase.database().ref("/cola");
+                                                                                      colas.on("value", snapshot => {
+                                                                                          snapshot.forEach(function(childSnapshot) {
+                                                                                              var key = childSnapshot.key;
+                                                                                              if (key === turnos.child(id.toString()).child("id_cola")) {
+                                                                                                  childSnapshot.child("pila").push(obj);
+                                                                                                  return childSnapshot
+                                                                                                      .child("pila")
+                                                                                                      .val()
+                                                                                                      .toString();
+                                                                                              }
+                                                                                          });
+                                                                                      });*/
 
     return /*Obj.id_turno.val()*/ "jola";
 }
