@@ -268,17 +268,17 @@ appTurno3.post("/pT", (req, res) => {
 
     res.json(turno);
     /*
-              turnos.push({
-                  id: item.key,
-                  items: item.val().item
-              });
+                turnos.push({
+                    id: item.key,
+                    items: item.val().item
+                });
 
-              let resp = turnos.on("child_added", function(snapshot) {
-                  return snapshot.key(); //This will print that unique key
-              });
+                let resp = turnos.on("child_added", function(snapshot) {
+                    return snapshot.key(); //This will print that unique key
+                });
 
-              response.send(resp);
-              // res.send(generado.val());*/
+                response.send(resp);
+                // res.send(generado.val());*/
 });
 
 exports.postTurno = functions.https.onRequest(appTurno3);
@@ -918,8 +918,6 @@ appCola4.put("/eC/:id", (req, res) => {
 });
 exports.editCola = functions.https.onRequest(appCola4);
 
-//Cancelar un negocio existente (no se borra, aparece como cancelado.)
-
 appCola5.put("/can/:id", (req, res) => {
     const colas = firebase.database().ref("/cola");
     colas.on("value", snapshot => {
@@ -933,35 +931,6 @@ appCola5.put("/can/:id", (req, res) => {
     });
 });
 exports.cancelCola = functions.https.onRequest(appCola5);
-
-//TODO:
-/** 
-
-appCola6.get("/g/:id_sucursal", (req, res) => {
-    let respuesta = {};
-    const servicios = firebase.database().ref("/servicio");
-    servicios.on("value", snapshot => {
-        snapshot.forEach(function(childSnapshot) {
-            let keys = childSnapshot.key;
-            if (
-                childSnapshot.child("id_sucursal").val() === req.params.id_sucursal &&
-                childSnapshot.child("activo").val() === "true"
-            ) {
-                respuesta = Object.assign({
-                        [keys]: childSnapshot.val()
-                    },
-                    respuesta
-                );
-            }
-        });
-    });
-    res.send(respuesta);
-});
-exports.getColaBySucursal = functions.https.onRequest(appCola6);
-
-*/
-
-//--------------------------------------------------------------------------------------------------------
 
 appTurno11.put("/update/:id", (req, res) => {
     const turnos = firebase.database().ref("/turno");
@@ -1097,39 +1066,4 @@ function calcularHora() {
         minutos = "0" + minutos;
     }
     return horas + ":" + minutos + ":" + segundos;
-}
-
-function calTiempoEspera(hora, sucursal) {
-    const turnos = firebase.database().ref("/turno");
-    let tiempo = 0;
-    turnos.on("value", snapshot => {
-        snapshot.forEach(function(childSnapshot) {
-            var snap = childSnapshot.child("id_sucursal").val();
-            if (snap === sucursal) {
-                tiempo = tiempo + parseInt(childSnapshot.child("duracion_turno").val());
-            }
-        });
-    });
-
-    return hora;
-}
-
-function calcularTiempoFila(id) {
-    let obj = { id_turno: id.toString() };
-    /*  const turnos = firebase.database().ref("/turno");
-                                                                                      const colas = firebase.database().ref("/cola");
-                                                                                      colas.on("value", snapshot => {
-                                                                                          snapshot.forEach(function(childSnapshot) {
-                                                                                              var key = childSnapshot.key;
-                                                                                              if (key === turnos.child(id.toString()).child("id_cola")) {
-                                                                                                  childSnapshot.child("pila").push(obj);
-                                                                                                  return childSnapshot
-                                                                                                      .child("pila")
-                                                                                                      .val()
-                                                                                                      .toString();
-                                                                                              }
-                                                                                          });
-                                                                                      });*/
-
-    return /*Obj.id_turno.val()*/ "jola";
 }
